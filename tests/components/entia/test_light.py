@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from homeassistant.components.dsoklic.const import ATTR_LIGHT_STATE, DOMAIN
+from homeassistant.components.entia.const import ATTR_LIGHT_STATE, DOMAIN
 from homeassistant.components.light import DOMAIN as LIGHT_DOMAIN
 from homeassistant.const import (
     ATTR_ENTITY_ID,

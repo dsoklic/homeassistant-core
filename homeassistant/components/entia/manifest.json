@@ -1,9 +1,9 @@
 {
-  "domain": "dsoklic",
+  "domain": "entia",
   "name": "Entia",
   "codeowners": ["@dsoklic"],
   "config_flow": true,
-  "documentation": "https://www.home-assistant.io/integrations/dsoklic",
+  "documentation": "https://www.home-assistant.io/integrations/entia",
   "integration_type": "hub",
   "iot_class": "cloud_polling",
   "quality_scale": "bronze",

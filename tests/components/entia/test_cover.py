@@ -13,7 +13,7 @@ from homeassistant.components.cover import (
     SERVICE_SET_COVER_POSITION,
     CoverState,
 )
-from homeassistant.components.dsoklic.const import ATTR_BLIND_POSITION, DOMAIN
+from homeassistant.components.entia.const import ATTR_BLIND_POSITION, DOMAIN
 from homeassistant.const import ATTR_ENTITY_ID, STATE_UNAVAILABLE
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er

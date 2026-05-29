@@ -6,8 +6,8 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from homeassistant import config_entries
-from homeassistant.components.dsoklic.api import AuthError, CannotConnect
-from homeassistant.components.dsoklic.const import DOMAIN
+from homeassistant.components.entia.api import AuthError, CannotConnect
+from homeassistant.components.entia.const import DOMAIN
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
@@ -27,11 +27,11 @@ def api_mocks() -> Generator[tuple[AsyncMock, AsyncMock]]:
     """Patch EntiaApiClient.authenticate and get_flat for all config flow tests."""
     with (
         patch(
-            "homeassistant.components.dsoklic.config_flow.EntiaApiClient.authenticate",
+            "homeassistant.components.entia.config_flow.EntiaApiClient.authenticate",
             new_callable=AsyncMock,
         ) as mock_auth,
         patch(
-            "homeassistant.components.dsoklic.config_flow.EntiaApiClient.get_flat",
+            "homeassistant.components.entia.config_flow.EntiaApiClient.get_flat",
             new_callable=AsyncMock,
             return_value=FLAT_RESPONSE,
         ) as mock_flat,

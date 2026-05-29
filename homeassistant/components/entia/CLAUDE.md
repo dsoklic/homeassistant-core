@@ -1,4 +1,4 @@
-# Entia Integration (dsoklic)
+# Entia Integration
 
 Integration for the Entia smart home platform at `https://api.entia.si/`.
 

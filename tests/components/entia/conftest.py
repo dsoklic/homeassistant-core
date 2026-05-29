@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from homeassistant.components.dsoklic.const import ATTR_LIGHT_STATE, DOMAIN
+from homeassistant.components.entia.const import ATTR_LIGHT_STATE, DOMAIN
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
 
@@ -46,7 +46,7 @@ MOCK_DEVICES_OFF = [
 def mock_setup_entry() -> Generator[AsyncMock]:
     """Override async_setup_entry."""
     with patch(
-        "homeassistant.components.dsoklic.async_setup_entry", return_value=True
+        "homeassistant.components.entia.async_setup_entry", return_value=True
     ) as mock_setup_entry:
         yield mock_setup_entry
 
@@ -64,9 +64,7 @@ def mock_config_entry() -> MockConfigEntry:
 @pytest.fixture
 def mock_api_client():
     """Patch EntiaApiClient with default light-on state."""
-    with patch(
-        "homeassistant.components.dsoklic.coordinator.EntiaApiClient"
-    ) as mock_cls:
+    with patch("homeassistant.components.entia.coordinator.EntiaApiClient") as mock_cls:
         instance = mock_cls.return_value
         instance.get_flat = AsyncMock(return_value=MOCK_FLAT)
         instance.get_devices = AsyncMock(return_value=MOCK_DEVICES_ON)

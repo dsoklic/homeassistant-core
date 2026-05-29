@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from homeassistant.components.dsoklic.const import ATTR_TEMPERATURE, DOMAIN
+from homeassistant.components.entia.const import ATTR_TEMPERATURE, DOMAIN
 from homeassistant.components.sensor import DOMAIN as SENSOR_DOMAIN
 from homeassistant.const import STATE_UNAVAILABLE
 from homeassistant.core import HomeAssistant
