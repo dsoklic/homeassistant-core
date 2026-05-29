@@ -5,7 +5,7 @@ from homeassistant.core import HomeAssistant
 
 from .coordinator import EntiaConfigEntry, EntiaCoordinator
 
-_PLATFORMS: list[Platform] = [Platform.LIGHT]
+_PLATFORMS: list[Platform] = [Platform.COVER, Platform.LIGHT]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: EntiaConfigEntry) -> bool:
