@@ -1539,6 +1539,12 @@
       "config_flow": true,
       "iot_class": "local_push"
     },
+    "dsoklic": {
+      "name": "Entia",
+      "integration_type": "hub",
+      "config_flow": true,
+      "iot_class": "cloud_polling"
+    },
     "dublin_bus_transport": {
       "name": "Dublin Bus",
       "integration_type": "hub",

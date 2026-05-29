@@ -171,6 +171,7 @@ FLOWS = {
         "droplet",
         "dsmr",
         "dsmr_reader",
+        "dsoklic",
         "duckdns",
         "duco",
         "dunehd",
