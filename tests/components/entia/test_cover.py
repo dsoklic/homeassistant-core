@@ -6,14 +6,23 @@ import pytest
 
 from homeassistant.components.cover import (
     ATTR_CURRENT_POSITION,
+    ATTR_CURRENT_TILT_POSITION,
     ATTR_POSITION,
+    ATTR_TILT_POSITION,
     DOMAIN as COVER_DOMAIN,
     SERVICE_CLOSE_COVER,
+    SERVICE_CLOSE_COVER_TILT,
     SERVICE_OPEN_COVER,
+    SERVICE_OPEN_COVER_TILT,
     SERVICE_SET_COVER_POSITION,
+    SERVICE_SET_COVER_TILT_POSITION,
     CoverState,
 )
-from homeassistant.components.entia.const import ATTR_BLIND_POSITION, DOMAIN
+from homeassistant.components.entia.const import (
+    ATTR_BLIND_POSITION,
+    BLIND_TILT_RANGE,
+    DOMAIN,
+)
 from homeassistant.const import ATTR_ENTITY_ID, STATE_UNAVAILABLE
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
@@ -182,3 +191,192 @@ async def test_cover_unavailable_when_missing_from_data(
     await hass.async_block_till_done()
 
     assert hass.states.get(entity_id).state == STATE_UNAVAILABLE
+
+
+@pytest.mark.parametrize(
+    ("initial_api", "target_api", "tilt_pos", "expected_api_value"),
+    [
+        # Downward moves: last direction is down, tilt nudges toward open (API value decreases)
+        pytest.param(0, 50, 100, 47, id="full_tilt_down"),
+        pytest.param(0, 50, 50, 48, id="half_tilt_down"),
+        pytest.param(0, 50, 0, 50, id="no_tilt_down"),
+        pytest.param(0, 99, 100, 96, id="full_tilt_near_closed_down"),
+        pytest.param(0, 1, 100, 0, id="full_tilt_clamped_at_open_down"),
+        # Upward moves: last direction is up, tilt nudges toward closed (API value increases)
+        pytest.param(100, 50, 100, 53, id="full_tilt_up"),
+        pytest.param(100, 50, 50, 52, id="half_tilt_up"),
+        pytest.param(100, 99, 100, 100, id="full_tilt_clamped_at_closed_up"),
+    ],
+)
+async def test_set_cover_tilt_position(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api_client: AsyncMock,
+    initial_api: int,
+    target_api: int,
+    tilt_pos: int,
+    expected_api_value: int,
+) -> None:
+    """Test that set_cover_tilt_position nudges in the reverse of the last move direction."""
+    mock_api_client.get_flat.return_value = MOCK_COVER_FLAT
+    mock_api_client.get_devices.return_value = [
+        {
+            "id": MOCK_COVER_ID,
+            "attributes": [{"id": ATTR_BLIND_POSITION, "value": initial_api}],
+        }
+    ]
+    mock_config_entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    entity_id = _entity_id(hass)
+
+    await hass.services.async_call(
+        COVER_DOMAIN,
+        SERVICE_SET_COVER_POSITION,
+        {ATTR_ENTITY_ID: entity_id, ATTR_POSITION: 100 - target_api},
+        blocking=True,
+    )
+    mock_api_client.set_device_attribute.reset_mock()
+
+    await hass.services.async_call(
+        COVER_DOMAIN,
+        SERVICE_SET_COVER_TILT_POSITION,
+        {ATTR_ENTITY_ID: entity_id, ATTR_TILT_POSITION: tilt_pos},
+        blocking=True,
+    )
+    mock_api_client.set_device_attribute.assert_called_once_with(
+        MOCK_COVER_ID, ATTR_BLIND_POSITION, expected_api_value
+    )
+    state = hass.states.get(entity_id)
+    assert state.attributes[ATTR_CURRENT_TILT_POSITION] == tilt_pos
+
+
+@pytest.mark.usefixtures("init_cover_integration")
+async def test_open_cover_tilt(
+    hass: HomeAssistant,
+    mock_api_client: AsyncMock,
+) -> None:
+    """Test that open_cover_tilt levels the slats (2 API units back from base)."""
+    entity_id = _entity_id(hass)
+
+    await hass.services.async_call(
+        COVER_DOMAIN,
+        SERVICE_SET_COVER_POSITION,
+        {ATTR_ENTITY_ID: entity_id, ATTR_POSITION: 50},
+        blocking=True,
+    )
+    mock_api_client.set_device_attribute.reset_mock()
+
+    await hass.services.async_call(
+        COVER_DOMAIN,
+        SERVICE_OPEN_COVER_TILT,
+        {ATTR_ENTITY_ID: entity_id},
+        blocking=True,
+    )
+    mock_api_client.set_device_attribute.assert_called_once_with(
+        MOCK_COVER_ID, ATTR_BLIND_POSITION, 50 - BLIND_TILT_RANGE
+    )
+    state = hass.states.get(entity_id)
+    assert state.attributes[ATTR_CURRENT_TILT_POSITION] == 100
+
+
+@pytest.mark.usefixtures("init_cover_integration")
+async def test_close_cover_tilt(
+    hass: HomeAssistant,
+    mock_api_client: AsyncMock,
+) -> None:
+    """Test that close_cover_tilt returns slats to base position."""
+    entity_id = _entity_id(hass)
+
+    await hass.services.async_call(
+        COVER_DOMAIN,
+        SERVICE_SET_COVER_POSITION,
+        {ATTR_ENTITY_ID: entity_id, ATTR_POSITION: 50},
+        blocking=True,
+    )
+    await hass.services.async_call(
+        COVER_DOMAIN,
+        SERVICE_OPEN_COVER_TILT,
+        {ATTR_ENTITY_ID: entity_id},
+        blocking=True,
+    )
+    mock_api_client.set_device_attribute.reset_mock()
+
+    await hass.services.async_call(
+        COVER_DOMAIN,
+        SERVICE_CLOSE_COVER_TILT,
+        {ATTR_ENTITY_ID: entity_id},
+        blocking=True,
+    )
+    mock_api_client.set_device_attribute.assert_called_once_with(
+        MOCK_COVER_ID, ATTR_BLIND_POSITION, 50
+    )
+    state = hass.states.get(entity_id)
+    assert state.attributes[ATTR_CURRENT_TILT_POSITION] == 0
+
+
+@pytest.mark.usefixtures("init_cover_integration")
+async def test_open_cover_tilt_after_upward_move(
+    hass: HomeAssistant,
+    mock_api_client: AsyncMock,
+) -> None:
+    """Test that open_cover_tilt nudges toward closed after an upward move."""
+    entity_id = _entity_id(hass)
+
+    await hass.services.async_call(
+        COVER_DOMAIN,
+        SERVICE_CLOSE_COVER,
+        {ATTR_ENTITY_ID: entity_id},
+        blocking=True,
+    )
+    await hass.services.async_call(
+        COVER_DOMAIN,
+        SERVICE_SET_COVER_POSITION,
+        {ATTR_ENTITY_ID: entity_id, ATTR_POSITION: 50},
+        blocking=True,
+    )
+    mock_api_client.set_device_attribute.reset_mock()
+
+    await hass.services.async_call(
+        COVER_DOMAIN,
+        SERVICE_OPEN_COVER_TILT,
+        {ATTR_ENTITY_ID: entity_id},
+        blocking=True,
+    )
+    mock_api_client.set_device_attribute.assert_called_once_with(
+        MOCK_COVER_ID, ATTR_BLIND_POSITION, 50 + BLIND_TILT_RANGE
+    )
+    state = hass.states.get(entity_id)
+    assert state.attributes[ATTR_CURRENT_TILT_POSITION] == 100
+
+
+@pytest.mark.usefixtures("init_cover_integration")
+async def test_position_command_resets_tilt(
+    hass: HomeAssistant,
+    mock_api_client: AsyncMock,
+) -> None:
+    """Test that a position command resets tilt state to 0."""
+    entity_id = _entity_id(hass)
+
+    await hass.services.async_call(
+        COVER_DOMAIN,
+        SERVICE_SET_COVER_POSITION,
+        {ATTR_ENTITY_ID: entity_id, ATTR_POSITION: 50},
+        blocking=True,
+    )
+    await hass.services.async_call(
+        COVER_DOMAIN,
+        SERVICE_OPEN_COVER_TILT,
+        {ATTR_ENTITY_ID: entity_id},
+        blocking=True,
+    )
+    assert hass.states.get(entity_id).attributes[ATTR_CURRENT_TILT_POSITION] == 100
+
+    await hass.services.async_call(
+        COVER_DOMAIN,
+        SERVICE_SET_COVER_POSITION,
+        {ATTR_ENTITY_ID: entity_id, ATTR_POSITION: 30},
+        blocking=True,
+    )
+    assert hass.states.get(entity_id).attributes[ATTR_CURRENT_TILT_POSITION] == 0

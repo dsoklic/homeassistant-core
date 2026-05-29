@@ -4,6 +4,7 @@ from typing import Any
 
 from homeassistant.components.cover import (
     ATTR_POSITION,
+    ATTR_TILT_POSITION,
     CoverDeviceClass,
     CoverEntity,
     CoverEntityFeature,
@@ -13,7 +14,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import ATTR_BLIND_POSITION, DOMAIN
+from .const import ATTR_BLIND_POSITION, BLIND_TILT_RANGE, DOMAIN
 from .coordinator import EntiaConfigEntry, EntiaCoordinator
 
 
@@ -41,6 +42,9 @@ class EntiaCover(CoordinatorEntity[EntiaCoordinator], CoverEntity):
         CoverEntityFeature.OPEN
         | CoverEntityFeature.CLOSE
         | CoverEntityFeature.SET_POSITION
+        | CoverEntityFeature.OPEN_TILT
+        | CoverEntityFeature.CLOSE_TILT
+        | CoverEntityFeature.SET_TILT_POSITION
     )
 
     def __init__(self, coordinator: EntiaCoordinator, device_id: int) -> None:
@@ -53,6 +57,11 @@ class EntiaCover(CoordinatorEntity[EntiaCoordinator], CoverEntity):
             name=coordinator.data[device_id]["name"],
             manufacturer="Entia",
         )
+        self._base_api_position: int = coordinator.data[device_id]["attributes"][
+            ATTR_BLIND_POSITION
+        ]
+        self._tilt_position: int = 0
+        self._last_moved_down: bool = True
 
     @property
     def available(self) -> bool:
@@ -71,6 +80,11 @@ class EntiaCover(CoordinatorEntity[EntiaCoordinator], CoverEntity):
         return 100 - raw  # API is inverted: 0=open, 100=closed
 
     @property
+    def current_cover_tilt_position(self) -> int:
+        """Return current tilt position (0=slats pointing down, 100=slats level)."""
+        return self._tilt_position
+
+    @property
     def is_closed(self) -> bool | None:
         """Return True if the cover is fully closed."""
         pos = self.current_cover_position
@@ -83,6 +97,9 @@ class EntiaCover(CoordinatorEntity[EntiaCoordinator], CoverEntity):
         await self.coordinator.client.set_device_attribute(
             self._device_id, ATTR_BLIND_POSITION, 0
         )
+        self._base_api_position = 0
+        self._last_moved_down = False
+        self._tilt_position = 0
         await self.coordinator.async_refresh()
 
     async def async_close_cover(self, **kwargs: Any) -> None:
@@ -90,11 +107,39 @@ class EntiaCover(CoordinatorEntity[EntiaCoordinator], CoverEntity):
         await self.coordinator.client.set_device_attribute(
             self._device_id, ATTR_BLIND_POSITION, 100
         )
+        self._base_api_position = 100
+        self._last_moved_down = True
+        self._tilt_position = 0
         await self.coordinator.async_refresh()
 
     async def async_set_cover_position(self, **kwargs: Any) -> None:
         """Move the cover to a specific position."""
+        api_value = 100 - kwargs[ATTR_POSITION]
+        if api_value != self._base_api_position:
+            self._last_moved_down = api_value > self._base_api_position
         await self.coordinator.client.set_device_attribute(
-            self._device_id, ATTR_BLIND_POSITION, 100 - kwargs[ATTR_POSITION]
+            self._device_id, ATTR_BLIND_POSITION, api_value
         )
+        self._base_api_position = api_value
+        self._tilt_position = 0
         await self.coordinator.async_refresh()
+
+    async def async_set_cover_tilt_position(self, **kwargs: Any) -> None:
+        """Tilt the slats to the given position (0=pointing down, 100=level)."""
+        tilt = kwargs[ATTR_TILT_POSITION]
+        offset = round(tilt / 100 * BLIND_TILT_RANGE)
+        sign = -1 if self._last_moved_down else 1
+        api_value = max(0, min(100, self._base_api_position + sign * offset))
+        await self.coordinator.client.set_device_attribute(
+            self._device_id, ATTR_BLIND_POSITION, api_value
+        )
+        self._tilt_position = tilt
+        await self.coordinator.async_refresh()
+
+    async def async_open_cover_tilt(self, **kwargs: Any) -> None:
+        """Level the slats (parallel = max light)."""
+        await self.async_set_cover_tilt_position(**{ATTR_TILT_POSITION: 100})
+
+    async def async_close_cover_tilt(self, **kwargs: Any) -> None:
+        """Return slats to base position (pointing down)."""
+        await self.async_set_cover_tilt_position(**{ATTR_TILT_POSITION: 0})
