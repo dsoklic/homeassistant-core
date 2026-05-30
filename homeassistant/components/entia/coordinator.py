@@ -7,17 +7,18 @@ from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import AuthError, CannotConnect, EntiaApiClient
+from .client.ws_client import EntiaWsClient
 from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
-UPDATE_INTERVAL = timedelta(seconds=30)
+UPDATE_INTERVAL = timedelta(minutes=5)
 
 type EntiaConfigEntry = ConfigEntry[EntiaCoordinator]
 
@@ -51,6 +52,18 @@ class EntiaCoordinator(DataUpdateCoordinator[dict[int, dict[str, Any]]]):
             username=config_entry.data[CONF_USERNAME],
             password=config_entry.data[CONF_PASSWORD],
         )
+        self.ws_client = EntiaWsClient(self.client, self._on_ws_event)
+
+    @callback
+    def _on_ws_event(self, device_id: int, attribute_id: int, value: Any) -> None:
+        """Apply a single attribute update from the WebSocket to coordinator data."""
+        if self.data is None or device_id not in self.data:
+            return
+        device = {
+            **self.data[device_id],
+            "attributes": {**self.data[device_id]["attributes"], attribute_id: value},
+        }
+        self.async_set_updated_data({**self.data, device_id: device})
 
     async def _async_update_data(self) -> dict[int, dict[str, Any]]:
         """Fetch current state for all devices."""

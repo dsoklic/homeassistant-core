@@ -76,6 +76,18 @@ class EntiaApiClient:
         except aiohttp.ClientError as err:
             raise CannotConnect(f"Cannot connect: {err}") from err
 
+    @property
+    def session(self) -> aiohttp.ClientSession:
+        """Return the underlying HTTP session."""
+        return self._session
+
+    async def get_token(self) -> str:
+        """Return the current token, authenticating first if necessary."""
+        if self._token is None:
+            await self.authenticate()
+        assert self._token is not None
+        return self._token
+
     async def get_flat(self) -> dict[str, Any]:
         """Return the flat metadata (id, name, etc.)."""
         return await self._request("GET", "flat")

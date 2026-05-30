@@ -43,9 +43,35 @@ Device labels use HTML entities (e.g. `&#381;` = Ž). The coordinator decodes th
 ```
 Attributes are inline — no per-device requests needed. `attribute_id 401` = light on/off state (1 = on, 0 = off).
 
+## WebSocket API
+
+Real-time push updates via `wss://ws.entia.si/?token={jwt}` (token as query param, **not** a header).
+
+No subscription message needed — the server streams all `attribute_event` messages for the flat immediately on connection.
+
+```json
+{"event": "attribute_event", "data": {"flat_id": 621, "device_id": 42519, "attribute_id": 601, "timestamp": 1780163836, "value": 98, "nvalue": 98}}
+```
+
+`value` is the raw attribute value (same scale as REST). `nvalue` mirrors `value` except for temperature where `nvalue = value / 2` (the actual °C).
+
+### Known attribute IDs
+| ID | Device type | Meaning |
+|---|---|---|
+| 401 | Light | On/off state (1=on, 0=off) |
+| 601 | Blind | Position (0=open, 100=closed) |
+| 602 | Blind | Mirrors position during movement |
+| 603 | Blind | Moving indicator (1=moving, 0=idle) |
+| 801 | Sensor | Temperature raw value (÷2 → °C) |
+
+### Architecture
+`EntiaWsClient` (`client/ws_client.py`) connects via aiohttp WebSocket, reconnects with exponential backoff (2–300 s), and calls `EntiaCoordinator._on_ws_event()` on each `attribute_event`. The coordinator merges the single attribute change into a shallow copy of its data and calls `async_set_updated_data()` to immediately notify all entities.
+
+REST polling (5-minute fallback) handles initial load and any events missed during reconnection.
+
 ## Coordinator update cycle
 
-Each 30-second poll makes two requests:
+Each 5-minute fallback poll makes two requests:
 1. `GET /flat` → build `{device_id: label}` map via `_build_label_map()`
 2. `GET /flat/device` → device states with inline attributes
 

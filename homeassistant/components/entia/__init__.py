@@ -14,6 +14,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: EntiaConfigEntry) -> boo
     await coordinator.async_config_entry_first_refresh()
     entry.runtime_data = coordinator
     await hass.config_entries.async_forward_entry_setups(entry, _PLATFORMS)
+    entry.async_create_background_task(
+        hass,
+        coordinator.ws_client.listen(),
+        f"entia_websocket_{entry.entry_id}",
+    )
+    entry.async_on_unload(coordinator.ws_client.close)
     return True
 
 
