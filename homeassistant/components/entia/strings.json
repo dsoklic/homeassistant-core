@@ -22,5 +22,16 @@
         "title": "Connect to Entia"
       }
     }
+  },
+  "entity": {
+    "select": {
+      "ventilation_mode": {
+        "name": "Mode",
+        "state": {
+          "heat_recovery": "Heat recovery",
+          "pass_through": "Pass-through"
+        }
+      }
+    }
   }
 }
